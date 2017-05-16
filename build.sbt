@@ -17,6 +17,7 @@ libraryDependencies ++= Seq(
   "com.mohiva" %% "play-silhouette-crypto-jca" % "4.0.0",
   "org.webjars" %% "webjars-play" % "2.5.0-2",
   "net.codingwell" %% "scala-guice" % "4.0.1",
+  "com.digitaltangible" %% "play-guard" % "2.0.0",
   "com.iheart" %% "ficus" % "1.2.6",
   "com.typesafe.play" %% "play-mailer" % "5.0.0",
   "com.enragedginger" %% "akka-quartz-scheduler" % "1.5.0-akka-2.4.x",

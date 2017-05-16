@@ -2,8 +2,11 @@ package controllers
 
 import javax.inject.Inject
 
+import akka.actor.ActorSystem
+import com.digitaltangible.playguard._
 import com.mohiva.play.silhouette.api.Authenticator.Implicits._
 import com.mohiva.play.silhouette.api._
+import com.mohiva.play.silhouette.api.actions.SecuredRequest
 import com.mohiva.play.silhouette.api.exceptions.ProviderException
 import com.mohiva.play.silhouette.api.repositories.AuthInfoRepository
 import com.mohiva.play.silhouette.api.util.{ Clock, Credentials }
@@ -15,8 +18,9 @@ import net.ceedubs.ficus.Ficus._
 import play.api.Configuration
 import play.api.i18n.{ I18nSupport, Messages, MessagesApi }
 import play.api.libs.concurrent.Execution.Implicits._
-import play.api.mvc.Controller
+import play.api.mvc._
 import utils.auth.DefaultEnv
+import utils.ratelimiter.UserLimiter
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -44,8 +48,14 @@ class SignInController @Inject() (
   socialProviderRegistry: SocialProviderRegistry,
   configuration: Configuration,
   clock: Clock,
-  implicit val webJarAssets: WebJarAssets)
+  implicit val webJarAssets: WebJarAssets)(implicit actorSystem: ActorSystem, conf: Configuration)
   extends Controller with I18nSupport {
+
+  /**
+   * A rate limiter based on failed requests
+   */
+  private val httpErrorRateLimited: ActionBuilder[Request] =
+    HttpErrorRateLimitAction(new RateLimiter(2, 1f / 10, "SignIn limiter"))(_ => TooManyRequests("failure rate exceeded"), 300 to 429 by 1)
 
   /**
    * Views the `Sign In` page.
@@ -61,7 +71,7 @@ class SignInController @Inject() (
    *
    * @return The result to display.
    */
-  def submit = silhouette.UnsecuredAction.async { implicit request =>
+  def submit = (httpErrorRateLimited andThen silhouette.UnsecuredAction).async { implicit request =>
     SignInForm.form.bindFromRequest.fold(
       form => Future.successful(BadRequest(views.html.signIn(form, socialProviderRegistry))),
       data => {

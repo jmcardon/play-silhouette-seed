@@ -12,6 +12,8 @@ import org.specs2.mock.Mockito
 import org.specs2.specification.Scope
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.concurrent.Execution.Implicits._
+import play.api.libs.json.Json
+import play.api.mvc.Result
 import play.api.test.{ FakeRequest, PlaySpecification, WithApplication }
 import utils.auth.DefaultEnv
 
@@ -20,6 +22,31 @@ import utils.auth.DefaultEnv
  */
 class ApplicationControllerSpec extends PlaySpecification with Mockito {
   sequential
+
+  "The `sign in` action" should {
+    "Throttle after two failed attempts" in new Context {
+
+      new WithApplication(application) {
+
+        val controller = app.injector.instanceOf[SignInController]
+
+        val incorrectIdentity = Json.obj(
+          "email" -> "wrong@wrong.com",
+          "password" -> "ayyitsme",
+          "rememberMe" -> true)
+
+        val res1 = await(controller.submit.apply(FakeRequest().withJsonBody(incorrectIdentity))).header.status
+
+        val res2 = await(controller.submit.apply(FakeRequest().withJsonBody(incorrectIdentity))).header.status
+
+        val throttledRequest = await(controller.submit.apply(FakeRequest().withJsonBody(incorrectIdentity))).header.status
+
+        res1 must beEqualTo(SEE_OTHER)
+        res2 must beEqualTo(SEE_OTHER)
+        throttledRequest must beEqualTo(TOO_MANY_REQUESTS)
+      }
+    }
+  }
 
   "The `index` action" should {
     "redirect to login page if user is unauthorized" in new Context {
@@ -50,6 +77,29 @@ class ApplicationControllerSpec extends PlaySpecification with Mockito {
         status(result) must beEqualTo(OK)
       }
     }
+
+    "Throttle on the fourth successive request within 10 seconds" in new Context {
+      new WithApplication(application) {
+        val Some(result1) = route(app, FakeRequest(routes.ApplicationController.index())
+          .withAuthenticator[DefaultEnv](identity.loginInfo)
+        )
+        val Some(result2) = route(app, FakeRequest(routes.ApplicationController.index())
+          .withAuthenticator[DefaultEnv](identity.loginInfo)
+        )
+        val Some(result3) = route(app, FakeRequest(routes.ApplicationController.index())
+          .withAuthenticator[DefaultEnv](identity.loginInfo)
+        )
+        val Some(result4) = route(app, FakeRequest(routes.ApplicationController.index())
+          .withAuthenticator[DefaultEnv](identity.loginInfo)
+        )
+
+        status(result1) must beEqualTo(OK)
+        status(result2) must beEqualTo(OK)
+        status(result3) must beEqualTo(OK)
+        status(result4) must beEqualTo(TOO_MANY_REQUESTS)
+      }
+    }
+
   }
 
   /**

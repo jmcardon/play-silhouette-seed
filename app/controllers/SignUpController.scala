@@ -86,7 +86,7 @@ class SignUpController @Inject() (
               fullName = Some(data.firstName + " " + data.lastName),
               email = Some(data.email),
               avatarURL = None,
-              activated = false
+              activated = true //for testing, activate immediately
             )
             for {
               avatar <- avatarService.retrieveURL(data.email)
@@ -95,13 +95,13 @@ class SignUpController @Inject() (
               authToken <- authTokenService.create(user.userID)
             } yield {
               val url = routes.ActivateAccountController.activate(authToken.id).absoluteURL()
-              mailerClient.send(Email(
-                subject = Messages("email.sign.up.subject"),
-                from = Messages("email.from"),
-                to = Seq(data.email),
-                bodyText = Some(views.txt.emails.signUp(user, url).body),
-                bodyHtml = Some(views.html.emails.signUp(user, url).body)
-              ))
+              //              mailerClient.send(Email(
+              //                subject = Messages("email.sign.up.subject"),
+              //                from = Messages("email.from"),
+              //                to = Seq(data.email),
+              //                bodyText = Some(views.txt.emails.signUp(user, url).body),
+              //                bodyHtml = Some(views.html.emails.signUp(user, url).body)
+              //              ))
 
               silhouette.env.eventBus.publish(SignUpEvent(user, request))
               result
@@ -111,3 +111,4 @@ class SignUpController @Inject() (
     )
   }
 }
+
